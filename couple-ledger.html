@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>兩人帳本</title>
+<style>
+  @font-face {
+    font-family: 'TabularNum';
+    src: local('Helvetica Neue');
+  }
+
+  :root {
+    --paper: #EFEDE7;
+    --paper-deep: #E5E1D7;
+    --ink: #262220;
+    --ink-soft: #5C5650;
+    --line: #D8D3C8;
+    --a: #B5563C; /* person A */
+    --b: #2F5D5A; /* person B */
+    --danger: #B5563C;
+    --income: #2F5D5A;
+    --expense: #B5563C;
+    --gold: #A8843F;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  body {
+    background-image:
+      radial-gradient(ellipse at top, rgba(0,0,0,0.02), transparent 60%);
+  }
+
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0 0 100px;
+  }
+
+  /* ---------- Header ---------- */
+  .header {
+    padding: 28px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header h1 {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+  .settings-btn {
+    border: none;
+    background: transparent;
+    font-size: 18px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+  }
+  .header .total {
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .header .total b {
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  /* ---------- Who toggle ---------- */
+  .who-row {
+    display: flex;
+    gap: 8px;
+    padding: 0 20px 14px;
+  }
+  .who-btn {
+    flex: 1;
+    border: 1.5px solid var(--line);
+    background: transparent;
+    border-radius: 999px;
+    padding: 9px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .who-btn .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.5;
+  }
+  .who-btn[data-who="A"] { color: var(--a); border-color: color-mix(in srgb, var(--a) 35%, var(--line)); }
+  .who-btn[data-who="B"] { color: var(--b); border-color: color-mix(in srgb, var(--b) 35%, var(--line)); }
+  .who-btn.active[data-who="A"] { background: var(--a); color: #fff; border-color: var(--a); }
+  .who-btn.active[data-who="B"] { background: var(--b); color: #fff; border-color: var(--b); }
+  .who-btn.active .dot { opacity: 1; background: #fff; }
+
+  /* ---------- Goal card ---------- */
+  .goal-card {
+    margin: 0 16px 16px;
+    background: linear-gradient(135deg, #2B2724, #1E1B19);
+    border-radius: 20px;
+    padding: 18px 20px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .goal-card::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -20%;
+    width: 160px;
+    height: 160px;
+    background: radial-gradient(circle, rgba(168,132,63,0.25), transparent 70%);
+    pointer-events: none;
+  }
+  .goal-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .goal-title {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .goal-edit {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+  .goal-amounts {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .goal-current {
+    font-size: 28px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+  }
+  .goal-target {
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    font-variant-numeric: tabular-nums;
+  }
+  .goal-bar-track {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .goal-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--gold), #D4B868);
+    transition: width 0.4s ease;
+  }
+  .goal-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+  }
+  .goal-meta b { color: rgba(255,255,255,0.85); font-weight: 700; }
+  .goal-empty {
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.6;
+  }
+  .goal-empty button {
+    margin-top: 10px;
+    background: var(--gold);
+    color: #1E1B19;
+    border: none;
+    padding: 9px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* ---------- Type tabs (income / expense) ---------- */
+  .type-row {
+    display: flex;
+    gap: 8px;
+    margin: 0 16px 12px;
+    background: rgba(0,0,0,0.04);
+    border-radius: 14px;
+    padding: 4px;
+  }
+  .type-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    border-radius: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .type-btn.active[data-type="expense"] {
+    background: #fff;
+    color: var(--expense);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .type-btn.active[data-type="income"] {
+    background: #fff;
+    color: var(--income);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  /* ---------- Entry card ---------- */
+  .entry-card {
+    margin: 0 16px 20px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 18px 18px 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,0,0,0.12);
+    border: 1px solid rgba(0,0,0,0.03);
+  }
+
+  .amount-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 14px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 14px;
+  }
+  .amount-row .currency {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-right: 4px;
+    align-self: flex-start;
+    margin-top: 10px;
+  }
+  .amount-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 44px;
+    font-weight: 700;
+    text-align: center;
+    width: 100%;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    transition: transform 0.12s ease;
+  }
+  .amount-input::placeholder { color: #C9C4B8; }
+  .amount-input.pulse { transform: scale(1.06); }
+  .amount-input.is-income { color: var(--income); }
+  .amount-input.is-expense { color: var(--expense); }
+
+  .field-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .note-input {
+    flex: 1;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 15px;
+    background: var(--paper);
+    color: var(--ink);
+    outline: none;
+  }
+  .note-input:focus { border-color: var(--ink-soft); }
+
+  .cat-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    margin-bottom: 14px;
+    scrollbar-width: none;
+  }
+  .cat-row::-webkit-scrollbar { display: none; }
+  .cat-chip {
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.12s ease;
+  }
+  .cat-chip.active {
+    background: var(--ink);
+    color: #fff;
+    border-color: var(--ink);
+  }
+
+  .submit-btn {
+    width: 100%;
+    border: none;
+    background: var(--ink);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 14px 0;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  .submit-btn:active { transform: scale(0.98); }
+  .submit-btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* ---------- List ---------- */
+  .list-section {
+    padding: 0 16px;
+  }
+  .day-group {
+    margin-bottom: 22px;
+  }
+  .day-label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    letter-spacing: 0.04em;
+    padding: 0 4px 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .day-label .day-total {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  .entry-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 13px 14px;
+    margin-bottom: 6px;
+    border: 1px solid rgba(0,0,0,0.03);
+    animation: slideIn 0.32s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .who-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .who-dot.A { background: var(--a); }
+  .who-dot.B { background: var(--b); }
+
+  .entry-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .entry-note {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .entry-cat {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 1px;
+  }
+  .entry-amount {
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .entry-amount.income { color: var(--income); }
+  .entry-amount.expense { color: var(--ink); }
+  .entry-del {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #C9C4B8;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+  }
+  .entry-del:hover { color: var(--danger); }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--ink-soft);
+  }
+  .empty-state .glyph {
+    font-size: 32px;
+    margin-bottom: 10px;
+    opacity: 0.5;
+  }
+  .empty-state p {
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--ink);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.25s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ---------- Goal modal ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20,18,16,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .modal-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .modal-box {
+    background: var(--paper);
+    border-radius: 20px;
+    padding: 22px 20px;
+    width: 100%;
+    max-width: 360px;
+    transform: translateY(8px);
+    transition: transform 0.18s ease;
+  }
+  .modal-overlay.show .modal-box { transform: translateY(0); }
+  .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .modal-field {
+    margin-bottom: 12px;
+  }
+  .modal-field label {
+    display: block;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 5px;
+    font-weight: 600;
+  }
+  .modal-field input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 15px;
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+  }
+  .modal-field input:focus { border-color: var(--ink-soft); }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .modal-actions button {
+    flex: 1;
+    border: none;
+    border-radius: 12px;
+    padding: 11px 0;
+    font-size: 14.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .modal-cancel {
+    background: transparent;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-soft);
+  }
+  .modal-save {
+    background: var(--ink);
+    color: #fff;
+  }
+  .modal-error {
+    font-size: 12.5px;
+    color: var(--danger);
+    margin-top: -4px;
+    margin-bottom: 8px;
+    min-height: 1em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-top">
+      <h1>兩人帳本</h1>
+      <button class="settings-btn" id="settingsBtn" aria-label="設定 Google Sheets 連結">⚙</button>
+    </div>
+    <div class="total">本月淨額 <b id="monthTotal">$0</b></div>
+  </div>
+
+  <div class="goal-card" id="goalCard">
+    <div class="loading" style="padding:20px 0;color:rgba(255,255,255,0.5);">讀取中…</div>
+  </div>
+
+  <div class="who-row">
+    <button class="who-btn active" data-who="A" id="btnA"><span class="dot"></span><span id="labelA">我</span></button>
+    <button class="who-btn" data-who="B" id="btnB"><span class="dot"></span><span id="labelB">對方</span></button>
+  </div>
+
+  <div class="type-row">
+    <button class="type-btn active" data-type="expense" id="typeExpense">支出</button>
+    <button class="type-btn" data-type="income" id="typeIncome">收入</button>
+  </div>
+
+  <div class="entry-card">
+    <div class="amount-row">
+      <span class="currency">$</span>
+      <input type="number" inputmode="decimal" class="amount-input is-expense" id="amountInput" placeholder="0" min="0" step="1">
+    </div>
+    <div class="field-row">
+      <input type="text" class="note-input" id="noteInput" placeholder="買了什麼？（選填）" maxlength="40">
+    </div>
+    <div class="cat-row" id="catRow"></div>
+    <button class="submit-btn" id="submitBtn" disabled>記一筆</button>
+  </div>
+
+  <div class="list-section" id="listSection">
+    <div class="loading">讀取中…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="goalModal">
+  <div class="modal-box">
+    <div class="modal-title">設定存款目標</div>
+    <div class="modal-field">
+      <label for="goalTargetInput">目標金額</label>
+      <input type="number" inputmode="decimal" id="goalTargetInput" placeholder="例如 2000000" min="0" step="1">
+    </div>
+    <div class="modal-field">
+      <label for="goalLabelInput">目標名稱（選填）</label>
+      <input type="text" id="goalLabelInput" placeholder="買房存款目標" maxlength="20">
+    </div>
+    <div class="modal-error" id="goalModalError"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="goalModalCancel">取消</button>
+      <button class="modal-save" id="goalModalSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="renameModal">
+  <div class="modal-box">
+    <div class="modal-title" id="renameModalTitle">改名字</div>
+    <div class="modal-field">
+      <input type="text" id="renameInput" placeholder="輸入名字" maxlength="10">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="renameModalCancel">取消</button>
+      <button class="modal-save" id="renameModalSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box">
+    <div class="modal-title">連結 Google Sheets</div>
+    <div class="modal-field">
+      <label for="apiUrlInput">Apps Script 部署網址</label>
+      <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+    <div class="modal-error" id="settingsModalError"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="settingsModalCancel">取消</button>
+      <button class="modal-save" id="settingsModalSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const EXPENSE_CATS = [
+    { id: 'food', label: '🍜 飲食' },
+    { id: 'transport', label: '🚗 交通' },
+    { id: 'shopping', label: '🛍️ 購物' },
+    { id: 'fun', label: '🎬 娛樂' },
+    { id: 'home', label: '🏠 居家' },
+    { id: 'date', label: '💛 約會' },
+    { id: 'other', label: '📦 其他' },
+  ];
+  const INCOME_CATS = [
+    { id: 'salary', label: '💼 薪資' },
+    { id: 'bonus', label: '🎁 獎金' },
+    { id: 'invest', label: '📈 投資' },
+    { id: 'gift', label: '🧧 紅包' },
+    { id: 'other_in', label: '📦 其他' },
+  ];
+
+  const STORAGE_KEY = 'entries';
+  const NAMES_KEY = 'names';
+  const GOAL_KEY = 'goal';
+  const API_URL_LOCAL_KEY = 'coupleLedgerApiUrl';
+
+  // Apps Script 部署網址：第一次使用時透過設定畫面輸入，存在這個瀏覽器裡
+  let apiUrl = '';
+  try { apiUrl = window.localStorage.getItem(API_URL_LOCAL_KEY) || ''; } catch (e) { apiUrl = ''; }
+
+  // 統一的資料存取層：呼叫使用者自己的 Google Apps Script 網址
+  const dataStore = {
+    async get(sheet) {
+      if (!apiUrl) throw new Error('尚未設定 Google Sheets 連結網址');
+      const res = await fetch(apiUrl + '?action=get&sheet=' + sheet);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      return json.value ? { value: json.value } : null;
+    },
+    async set(sheet, value) {
+      if (!apiUrl) throw new Error('尚未設定 Google Sheets 連結網址');
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: new URLSearchParams({ action: 'set', sheet: sheet, data: value }).toString()
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      return json;
+    }
+  };
+
+  let entries = [];
+  let names = { A: '我', B: '對方' };
+  let goal = null; // { target, label }
+  let selectedWho = 'A';
+  let selectedType = 'expense';
+  let selectedCat = 'food';
+
+  const amountInput = document.getElementById('amountInput');
+  const noteInput = document.getElementById('noteInput');
+  const submitBtn = document.getElementById('submitBtn');
+  const catRow = document.getElementById('catRow');
+  const listSection = document.getElementById('listSection');
+  const monthTotal = document.getElementById('monthTotal');
+  const toast = document.getElementById('toast');
+  const btnA = document.getElementById('btnA');
+  const btnB = document.getElementById('btnB');
+  const labelA = document.getElementById('labelA');
+  const labelB = document.getElementById('labelB');
+  const typeExpense = document.getElementById('typeExpense');
+  const typeIncome = document.getElementById('typeIncome');
+  const goalCard = document.getElementById('goalCard');
+
+  function fmt(n) {
+    return '$' + Math.round(n).toLocaleString('zh-Hant');
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1600);
+  }
+
+  function currentCats() {
+    return selectedType === 'income' ? INCOME_CATS : EXPENSE_CATS;
+  }
+
+  function renderCats() {
+    catRow.innerHTML = '';
+    currentCats().forEach(c => {
+      const chip = document.createElement('button');
+      chip.className = 'cat-chip' + (c.id === selectedCat ? ' active' : '');
+      chip.textContent = c.label;
+      chip.onclick = () => {
+        selectedCat = c.id;
+        renderCats();
+      };
+      catRow.appendChild(chip);
+    });
+  }
+
+  function setType(type) {
+    selectedType = type;
+    typeExpense.classList.toggle('active', type === 'expense');
+    typeIncome.classList.toggle('active', type === 'income');
+    amountInput.classList.toggle('is-expense', type === 'expense');
+    amountInput.classList.toggle('is-income', type === 'income');
+    selectedCat = currentCats()[0].id;
+    renderCats();
+    submitBtn.textContent = type === 'income' ? '記一筆收入' : '記一筆';
+  }
+  typeExpense.onclick = () => setType('expense');
+  typeIncome.onclick = () => setType('income');
+
+  function setWho(who) {
+    selectedWho = who;
+    btnA.classList.toggle('active', who === 'A');
+    btnB.classList.toggle('active', who === 'B');
+  }
+  btnA.onclick = () => setWho('A');
+  btnB.onclick = () => setWho('B');
+
+  function checkValid() {
+    const v = parseFloat(amountInput.value);
+    submitBtn.disabled = !(v > 0);
+  }
+  amountInput.addEventListener('input', () => {
+    checkValid();
+    amountInput.classList.add('pulse');
+    setTimeout(() => amountInput.classList.remove('pulse'), 120);
+  });
+
+  function dayKey(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+  }
+  function dayLabel(ts) {
+    const d = new Date(ts);
+    const today = new Date();
+    const yest = new Date(); yest.setDate(today.getDate()-1);
+    if (dayKey(ts) === dayKey(today.getTime())) return '今天';
+    if (dayKey(ts) === dayKey(yest.getTime())) return '昨天';
+    return (d.getMonth()+1) + '月' + d.getDate() + '日';
+  }
+  function catLabel(id) {
+    const c = [...EXPENSE_CATS, ...INCOME_CATS].find(c => c.id === id);
+    return c ? c.label : id;
+  }
+
+  function renderList() {
+    if (entries.length === 0) {
+      listSection.innerHTML = `
+        <div class="empty-state">
+          <div class="glyph">✎</div>
+          <p>還沒有記錄<br>記下第一筆收支吧</p>
+        </div>`;
+      monthTotal.textContent = '$0';
+      return;
+    }
+
+    const sorted = [...entries].sort((a,b) => b.ts - a.ts);
+
+    // month net (income - expense)
+    const now = new Date();
+    const monthNet = sorted
+      .filter(e => {
+        const d = new Date(e.ts);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      })
+      .reduce((s,e) => s + (e.type === 'income' ? e.amount : -e.amount), 0);
+    monthTotal.textContent = (monthNet < 0 ? '-' : '') + fmt(Math.abs(monthNet));
+    monthTotal.style.color = monthNet < 0 ? 'var(--expense)' : 'var(--ink)';
+
+    // group by day
+    const groups = [];
+    let curKey = null, curGroup = null;
+    sorted.forEach(e => {
+      const k = dayKey(e.ts);
+      if (k !== curKey) {
+        curKey = k;
+        curGroup = { key: k, ts: e.ts, items: [] };
+        groups.push(curGroup);
+      }
+      curGroup.items.push(e);
+    });
+
+    listSection.innerHTML = '';
+    groups.forEach(g => {
+      const dayNet = g.items.reduce((s,e) => s + (e.type === 'income' ? e.amount : -e.amount), 0);
+      const groupEl = document.createElement('div');
+      groupEl.className = 'day-group';
+      const labelEl = document.createElement('div');
+      labelEl.className = 'day-label';
+      const sign = dayNet < 0 ? '-' : (dayNet > 0 ? '+' : '');
+      labelEl.innerHTML = `<span>${dayLabel(g.ts)}</span><span class="day-total">${sign}${fmt(Math.abs(dayNet))}</span>`;
+      groupEl.appendChild(labelEl);
+
+      g.items.forEach(e => {
+        const isIncome = e.type === 'income';
+        const row = document.createElement('div');
+        row.className = 'entry-row';
+        row.innerHTML = `
+          <span class="who-dot ${e.who}"></span>
+          <div class="entry-info">
+            <div class="entry-note">${e.note || catLabel(e.cat).split(' ')[1]}</div>
+            <div class="entry-cat">${catLabel(e.cat)} · ${names[e.who]}</div>
+          </div>
+          <div class="entry-amount ${e.type}">${isIncome ? '+' : '−'}${fmt(e.amount)}</div>
+          <button class="entry-del" data-id="${e.id}">×</button>
+        `;
+        row.querySelector('.entry-del').onclick = () => deleteEntry(e.id);
+        groupEl.appendChild(row);
+      });
+
+      listSection.appendChild(groupEl);
+    });
+  }
+
+  function totalNet() {
+    return entries.reduce((s,e) => s + (e.type === 'income' ? e.amount : -e.amount), 0);
+  }
+
+  function avgMonthlyNet() {
+    if (entries.length === 0) return 0;
+    const sorted = [...entries].sort((a,b) => a.ts - b.ts);
+    const firstTs = sorted[0].ts;
+    const monthsSpan = Math.max(1, (Date.now() - firstTs) / (1000*60*60*24*30.44));
+    return totalNet() / monthsSpan;
+  }
+
+  function renderGoal() {
+    if (!goal || !goal.target) {
+      goalCard.innerHTML = `
+        <div class="goal-empty">
+          還沒有設定買房存款目標<br>設個數字，一起朝目標前進
+          <div><button id="setGoalBtn">設定目標</button></div>
+        </div>`;
+      document.getElementById('setGoalBtn').onclick = promptGoal;
+      return;
+    }
+
+    const current = totalNet();
+    const pct = Math.min(100, Math.max(0, (current / goal.target) * 100));
+    const remaining = goal.target - current;
+    const monthlyNet = avgMonthlyNet();
+    let etaText = '—';
+    if (remaining <= 0) {
+      etaText = '已達標 🎉';
+    } else if (monthlyNet > 0) {
+      const months = Math.ceil(remaining / monthlyNet);
+      etaText = months <= 1 ? '約 1 個月' : `約 ${months} 個月`;
+    } else {
+      etaText = '目前淨儲蓄為負';
+    }
+
+    goalCard.innerHTML = `
+      <div class="goal-top">
+        <span class="goal-title">${goal.label || '買房存款目標'}</span>
+        <button class="goal-edit" id="editGoalBtn">編輯</button>
+      </div>
+      <div class="goal-amounts">
+        <span class="goal-current">${fmt(current)}</span>
+        <span class="goal-target">／ ${fmt(goal.target)}</span>
+      </div>
+      <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${pct}%"></div></div>
+      <div class="goal-meta">
+        <span>已達成 <b>${pct.toFixed(1)}%</b></span>
+        <span>預估還要 <b>${etaText}</b></span>
+      </div>
+    `;
+    document.getElementById('editGoalBtn').onclick = promptGoal;
+  }
+
+  const goalModal = document.getElementById('goalModal');
+  const goalTargetInput = document.getElementById('goalTargetInput');
+  const goalLabelInput = document.getElementById('goalLabelInput');
+  const goalModalError = document.getElementById('goalModalError');
+  const goalModalCancel = document.getElementById('goalModalCancel');
+  const goalModalSave = document.getElementById('goalModalSave');
+
+  function openGoalModal() {
+    goalTargetInput.value = goal && goal.target ? goal.target : '';
+    goalLabelInput.value = goal && goal.label ? goal.label : '';
+    goalModalError.textContent = '';
+    goalModal.classList.add('show');
+    setTimeout(() => goalTargetInput.focus(), 50);
+  }
+  function closeGoalModal() {
+    goalModal.classList.remove('show');
+  }
+  goalModalCancel.onclick = closeGoalModal;
+  goalModal.addEventListener('click', (e) => {
+    if (e.target === goalModal) closeGoalModal();
+  });
+
+  async function saveGoalFromModal() {
+    const num = parseFloat(goalTargetInput.value);
+    if (!(num > 0)) {
+      goalModalError.textContent = '請輸入大於 0 的金額';
+      return;
+    }
+    const label = goalLabelInput.value.trim() || '買房存款目標';
+    goal = { target: num, label };
+    closeGoalModal();
+    renderGoal();
+    try {
+      await dataStore.set(GOAL_KEY, JSON.stringify(goal));
+    } catch (e) {
+      showToast('儲存失敗：' + e.message);
+    }
+  }
+  goalModalSave.onclick = saveGoalFromModal;
+  goalTargetInput.addEventListener('keydown', e => { if (e.key === 'Enter') goalLabelInput.focus(); });
+  goalLabelInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveGoalFromModal(); });
+
+  function promptGoal() {
+    openGoalModal();
+  }
+
+  async function loadGoal() {
+    try {
+      const result = await dataStore.get(GOAL_KEY);
+      goal = result ? JSON.parse(result.value) : null;
+    } catch (e) {
+      goal = null;
+    }
+    renderGoal();
+  }
+
+  async function loadEntries() {
+    if (!apiUrl) {
+      entries = [];
+      renderList();
+      renderGoal();
+      return;
+    }
+    try {
+      const result = await dataStore.get(STORAGE_KEY);
+      entries = result ? JSON.parse(result.value) : [];
+    } catch (e) {
+      entries = [];
+      showToast('讀取失敗：' + e.message);
+    }
+    renderList();
+    renderGoal();
+  }
+
+  async function saveEntries() {
+    try {
+      await dataStore.set(STORAGE_KEY, JSON.stringify(entries));
+    } catch (e) {
+      showToast('儲存失敗：' + e.message);
+    }
+  }
+
+  async function loadNames() {
+    if (!apiUrl) return;
+    try {
+      const result = await dataStore.get(NAMES_KEY);
+      if (result) {
+        names = JSON.parse(result.value);
+        labelA.textContent = names.A;
+        labelB.textContent = names.B;
+      }
+    } catch (e) { /* use defaults */ }
+  }
+
+  async function deleteEntry(id) {
+    entries = entries.filter(e => e.id !== id);
+    renderList();
+    renderGoal();
+    await saveEntries();
+  }
+
+  async function submitEntry() {
+    const v = parseFloat(amountInput.value);
+    if (!(v > 0)) return;
+    const entry = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+      amount: v,
+      note: noteInput.value.trim(),
+      cat: selectedCat,
+      who: selectedWho,
+      type: selectedType,
+      ts: Date.now(),
+    };
+    entries.push(entry);
+    renderList();
+    renderGoal();
+    amountInput.value = '';
+    noteInput.value = '';
+    checkValid();
+    showToast(selectedType === 'income' ? '收入記好了 ✓' : '記好了 ✓');
+    amountInput.focus();
+    await saveEntries();
+  }
+
+  submitBtn.onclick = submitEntry;
+  amountInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') noteInput.focus();
+  });
+  noteInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !submitBtn.disabled) submitEntry();
+  });
+
+  // long-press on name labels to rename (simple double-click for desktop too)
+
+  const renameModal = document.getElementById('renameModal');
+  const renameInput = document.getElementById('renameInput');
+  const renameModalTitle = document.getElementById('renameModalTitle');
+  const renameModalCancel = document.getElementById('renameModalCancel');
+  const renameModalSave = document.getElementById('renameModalSave');
+  let renameTargetKey = null;
+
+  function openRenameModal(current, title) {
+    renameModalTitle.textContent = title;
+    renameInput.value = current;
+    renameModal.classList.add('show');
+    setTimeout(() => renameInput.focus(), 50);
+  }
+  function closeRenameModal() {
+    renameModal.classList.remove('show');
+  }
+  renameModalCancel.onclick = closeRenameModal;
+  renameModal.addEventListener('click', (e) => {
+    if (e.target === renameModal) closeRenameModal();
+  });
+  async function saveRename() {
+    const v = renameInput.value.trim();
+    if (!v) { closeRenameModal(); return; }
+    if (renameTargetKey === 'A') {
+      names.A = v;
+      labelA.textContent = names.A;
+    } else {
+      names.B = v;
+      labelB.textContent = names.B;
+    }
+    closeRenameModal();
+    renderList();
+    try {
+      await dataStore.set(NAMES_KEY, JSON.stringify(names));
+    } catch (e) {
+      showToast('儲存失敗：' + e.message);
+    }
+  }
+  renameModalSave.onclick = saveRename;
+  renameInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveRename(); });
+
+  labelA.addEventListener('dblclick', () => {
+    renameTargetKey = 'A';
+    openRenameModal(names.A, '你的名字／代稱');
+  });
+  labelB.addEventListener('dblclick', () => {
+    renameTargetKey = 'B';
+    openRenameModal(names.B, '對方的名字／代稱');
+  });
+
+  // ---------- 設定 Google Sheets 連結 ----------
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsModal = document.getElementById('settingsModal');
+  const apiUrlInput = document.getElementById('apiUrlInput');
+  const settingsModalError = document.getElementById('settingsModalError');
+  const settingsModalCancel = document.getElementById('settingsModalCancel');
+  const settingsModalSave = document.getElementById('settingsModalSave');
+
+  function openSettingsModal() {
+    apiUrlInput.value = apiUrl;
+    settingsModalError.textContent = '';
+    settingsModal.classList.add('show');
+    setTimeout(() => apiUrlInput.focus(), 50);
+  }
+  function closeSettingsModal() {
+    settingsModal.classList.remove('show');
+  }
+  settingsBtn.onclick = openSettingsModal;
+  settingsModalCancel.onclick = closeSettingsModal;
+  settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) closeSettingsModal();
+  });
+
+  async function saveSettings() {
+    const url = apiUrlInput.value.trim();
+    if (!url.startsWith('https://script.google.com/')) {
+      settingsModalError.textContent = '請貼上 script.google.com 開頭的部署網址';
+      return;
+    }
+    apiUrl = url;
+    try { window.localStorage.setItem(API_URL_LOCAL_KEY, apiUrl); } catch (e) { /* ignore */ }
+    closeSettingsModal();
+    showToast('連結成功，讀取中…');
+    await loadNames();
+    await loadGoal();
+    await loadEntries();
+  }
+  settingsModalSave.onclick = saveSettings;
+  apiUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveSettings(); });
+
+  renderCats();
+  if (!apiUrl) {
+    listSection.innerHTML = `
+      <div class="empty-state">
+        <div class="glyph">⚙</div>
+        <p>請先點右上角齒輪<br>貼上 Google Sheets 連結網址</p>
+      </div>`;
+    openSettingsModal();
+  } else {
+    loadNames();
+    loadGoal();
+    loadEntries();
+  }
+})();
+</script>
+</body>
+</html>
