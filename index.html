@@ -706,8 +706,7 @@
       if (!apiUrl) throw new Error('尚未設定 Google Sheets 連結網址');
       const res = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: new URLSearchParams({ action: 'set', sheet: sheet, data: value }).toString()
+        body: new URLSearchParams({ action: 'set', sheet: sheet, data: value })
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
